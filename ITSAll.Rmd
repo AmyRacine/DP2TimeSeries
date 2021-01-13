@@ -1,0 +1,143 @@
+---
+title: "ITSall"
+author: "Amy Racine"
+date: "17 12 2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## R Markdown
+
+Evaluate the result of ITS, data recorded in weeks or in month
+When no missing data, use original data
+when there are missing value first run missimpute and input impute data
+
+
+
+```{r, graphics, echo=FALSE}
+
+# function of plots
+
+library("fpp2")
+
+pictures<-function(indata, model, titlename,nfreq1 )
+  
+{   
+all<-cbind(indata,model$residual,model$fitted)
+colnames(all)<-c( "PTB.rate","residuals","fitted")
+ 
+allnow<-ts(all,start=1,frequency=nfreq1)[]
+ 
+print(autoplot(allnow,facet=TRUE) +ggtitle(titlename) )    
+
+print(autoplot(allnow[,-2],facet=FALSE)+ggtitle(titlename)  )
+print(ggAcf(model$residuals) + ggtitle(titlename)  )
+print(ggPacf(model$residuals) +ggtitle(titlename) )   
+
+       
+}
+```
+
+
+
+
+
+```{r, Evaulation,echo=FALSE}
+
+ 
+Evaluations<-function(indata,Tlockdown,nfreq  )
+
+ { 
+
+ print(indata) 
+  
+datain<-read.csv2(indata)
+
+   
+
+# total observation weeks
+Tend<-length(datain[,2])
+Tend_1=Tend-1
+# time start lockdown in week
+ 
+Tlockdown_1<-Tlockdown+1
+Tafter<-Tend-Tlockdown
+Tdur<-Tend-Tlockdown 
+Tdur_1=Tdur-1
+seasons<-datain[,4]
+seasons<-as.factor(seasons)
+all<-datain[,1:3]
+all<-data.frame(all,seasons)
+ 
+   
+  nbirth<-all[,3]
+  missind<-as.logical(datain[,5])
+   # make sure missing value has min weight 
+  for (jj in  1:Tend ) 
+  {
+    if  (missind[jj] =="TRUE")  { nbirth[jj]=1} 
+  }
+  #  dessign matrix
+  
+  slope1<-0:Tend_1
+  slope2<-log2(1:Tend)
+  slope3<-sqrt(0:Tend_1)
+  slope4<-(0:Tend_1)^2
+   
+  diff.slope1<-c(rep(0,time=Tlockdown),0:Tdur_1)
+  diff.slope2<-c(rep(0,time=Tlockdown),log2(1:Tdur))
+  diff.slope3<-c(rep(0,time=Tlockdown),sqrt(0:Tdur_1))
+  diff.slope4<-c(rep(0,time=Tlockdown),(0:Tdur_1)^2)
+  diff.intercept<-c(rep(0,time=Tlockdown),rep(1,time=Tdur))
+  
+  tsdata <-datain[,2]
+  
+  PTB.rate<-ts(data=tsdata,start=c(0,1),frequency=nfreq)
+ 
+ modellinear<-tslm(data=PTB.rate,PTB.rate~-1+seasons +slope1+diff.intercept+diff.slope1,weights=nbirth )   
+ 
+ modellog2<-tslm(data=PTB.rate,PTB.rate~-1+seasons +slope2+diff.intercept+diff.slope2,weights=nbirth  )   
+ 
+ modelsqrt<-tslm(data=PTB.rate,PTB.rate~-1+seasons +slope3+diff.intercept+diff.slope3,weights=nbirth )   
+  
+ modelsquare<-tslm(data=PTB.rate,PTB.rate~-1+seasons +slope4+diff.intercept+diff.slope4,weights=nbirth ) 
+ 
+ modelpoly<-tslm(data=PTB.rate,PTB.rate~-1+seasons+slope1+slope4+diff.intercept+diff.slope1+diff.slope4, weights=nbirth )
+   
+  aics<-AIC(modellinear,modellog2,modelsqrt,modelsquare,modelpoly)
+  
+  print(aics)
+   
+  best.modname = rownames(aics[aics$AIC==min(aics$AIC),])
+  best.model = eval(parse(text=best.modname))
+
+  y1<- summary(best.model)
+  z1<-y1$coefficients
+  print(z1)
+  pictures(PTB.rate,best.model,"Best Model",nfreq)
+ 
+}
+# Imputed data set and lockdown time and frequency
+# imputed weekly data
+
+Evaluations("./log2wkImpute.csv", 276, 52)
+# original data
+Evaluations("./datalog2wk.csv",276, 52)
+
+# Monthly data impute
+ Evaluations("./log2monthImpute.csv", 63, 12)
+# original data
+Evaluations("./datalog2month.csv",63, 12)
+# weekly imputed
+Evaluations("./squarewkImpute.csv", 276, 52)
+# monthly imputed
+Evaluations("./squaremonthImpute.csv", 63, 12)
+ 
+```
+ 
+
+

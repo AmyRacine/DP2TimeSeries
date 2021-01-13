@@ -1,0 +1,216 @@
+---
+title: "ForecastAll"
+author: "Amy Racine"
+date: "17 12 2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## R Markdown
+
+Forecast post lockdown outcome based on pre-lock down modelling using the best model from ITS for weekly and monthly data
+You need to run ITSAll to choose the best model as input
+ 
+```{r read data,echo=FALSE}
+library("fpp2")
+ 
+# inmodel 1 linear 2 log2 3 sqrt 4 square 5 polynomial
+# w4sum=TRUE for weekly data
+
+Tellfortune <- function(indata,inmodel,Tlockdown,wk4sum)
+  
+{ 
+  
+ print(indata) 
+  
+datain<-read.csv2(indata)
+
+
+
+# total observation in unit of input 
+Tend<-length(datain[,2])
+
+# time start lockdown  in unit of input
+ 
+Tlockdown_1<-Tlockdown+1
+Tafter<-Tend-Tlockdown
+
+seasons<-datain[,4]
+seasons<-as.factor(seasons)
+all<-datain[,1:3]
+all<-data.frame(all,seasons)
+ 
+  nbirth<-all[,3]
+  missind<-as.logical(datain[,5])
+   # code missing data with birth=1, to downweight observation
+  
+  for (jj in  1:Tend ) 
+  { 
+    if  (missind[jj] =="TRUE")  { nbirth[jj]=1} 
+  }
+ all[,3]=nbirth
+ 
+#   linear trend, log2 trend, sqrt trend, square trend
+slope1<-all[,1]-1
+slope2<-log2(all[,1] )
+slope3 <-sqrt(all[,1]-1)
+slope4 <-(all[,1]-1)^2
+
+all<-data.frame(all)
+all1<-all
+
+# using only before lockdown for modelling
+
+all1[Tlockdown_1:Tend,2]<-NA
+ 
+ nbirth<-all1[,3]
+ seasons<-all1[,4]
+ seasons<-as.factor(seasons)
+ 
+  
+ 
+    
+  if( inmodel==1)
+{ 
+  result<-lm(data=all1,PTBrate~-1+seasons+slope1,weight=nbirth )
+}
+  
+  if( inmodel==2)
+{ 
+   result<-lm(data=all1,PTBrate~-1+seasons+slope2,weight=nbirth )
+  }
+  
+  if( inmodel==3)
+{ 
+   result<-lm(data=all1,PTBrate~-1+seasons+slope3,weight=nbirth )
+  }
+  
+  if( inmodel==4)
+{ 
+   result<-lm(data=all1,PTBrate~-1+seasons+slope4,weight=nbirth )
+  }
+  
+  
+  if( inmodel==5)
+{ 
+   result<-lm(data=all1,PTBrate~-1+seasons+slope1+slope4,weight=nbirth )
+  }
+ 
+# result of time series model prior to breakdown
+print(summary(result))
+y<-summary(result)
+
+nbirth<-all1[,3]
+w<-predict(result,newdata=all1,interval="prediction",weights=nbirth)
+
+ # result of prediction of time series based on data prior to breakdown
+ 
+ 
+stderr<-(w[,3]-w[,2])/(2*1.96)
+
+w<-cbind(w,stderr)
+colnames(w)<-c("fit","LL","UL" ,"stderr")
+print(w[Tlockdown_1:Tend,])
+
+combine<-data.frame(all,w) 
+ 
+
+# calculate the observed - predicted
+ Tlen<-(Tend-Tlockdown)
+ nrep<-3*Tlen
+ obs_pred<-rep(0,time=nrep)
+ dim(obs_pred)<-c(Tlen,3)
+ 
+ obs_pred[1:Tlen,1]<-as.numeric(all[Tlockdown_1 :Tend,2])- w[Tlockdown_1 :Tend,1] 
+ obs_pred[1:Tlen,2]<-as.numeric(all[Tlockdown_1 :Tend,2])- w[Tlockdown_1: Tend,3] 
+ obs_pred[1:Tlen,3]<-as.numeric(all[Tlockdown_1 :Tend,2])- w[Tlockdown_1 : Tend,2]  
+ obs_pred<-data.frame(1:Tlen,obs_pred)
+ colnames(obs_pred)=c("time","obs_pred","LL","UL")
+  
+ 
+  gg3<-ggplot(data=obs_pred,aes(x=time,y=obs_pred)) + geom_point() +ggtitle("Observed-Predicted Post lockdown")
+  gg4<- gg3+geom_errorbar(data=obs_pred, aes(ymin=LL, ymax=UL), width=.1) + geom_hline(yintercept=0)
+  # post locked down observed - predicted  
+  # this is the input for meta-analysis for monthly data
+  
+  print(obs_pred)
+
+  print(gg4)
+  
+# average of  4 weeks observed and predicted  with 95% CI  for weekly data
+ if (as.logical(wk4sum)=="TRUE")
+ 
+ { 
+# finding the weighted mean of 4 weeks forecast and its stderr
+
+npred<-as.integer((Tend- Tlockdown)/4)
+w4week<-rep(0,time=5*npred)
+  
+dim(w4week)<-c(npred,5)
+for (ll in (1:npred))
+  
+  
+ 
+  
+{ lower=(ll-1)*4+Tlockdown 
+
+  upper=ll*4+Tlockdown-1 
+   sumfit<-0
+  sumvar<-0
+  sumobs<-0
+  
+   for (jj in (lower:upper))
+   {sumfit=sumfit+w[jj,1]/w[jj,4]^2   
+  
+    sumvar=sumvar+1/w[jj,4]^2   
+    sumobs= sumobs+as.numeric(all[jj,2]) /w[jj,4]^2
+   }
+  # calcuate the wted mean as its corresponding stderr
+  w4week[ll,1]<-sumfit/sumvar
+  
+  w4week[ll,5]<-sumobs/sumvar
+  # a generalised version of the variance = sum var/16+varof the mean foreast
+   fitnow=w[lower:upper,1]  
+    w4week[ll,4]<-sqrt(1/sumvar)
+  w4week[ll,2]=w4week[ll,1]-1.96*w4week[ll,4]
+  w4week[ll,3]=w4week[ll,1]+1.96*w4week[ll,4]
+}
+ week4<-c(1:npred)*4
+ 
+ w4week<-cbind(week4,w4week)
+  
+
+  colnames(w4week) =  c("time", "fit","LL","UL" ,"stderr","observed")
+  obs_predw4=w4week
+  obs_predw4[,2:4]=w4week[,6]-w4week[,2:4]
+  colnames(obs_predw4) =  c("time", "obs_pred","LL","UL" ,"stderr","observed")
+  obs_predw4<-data.frame(obs_predw4)
+   
+  gg3<-ggplot(data=obs_predw4,aes(x=time,y=obs_pred)) + geom_point() +ggtitle("Ave 4 weeks Observed-Predicted")
+    
+  gg4<- gg3+geom_errorbar(data=obs_predw4, aes(ymin=LL, ymax=UL), width=.1) + geom_hline(yintercept=0)
+  # post lock  down average of 4 weeks  observed - predicted    
+  # this is the input for meta-analysis for weekly data
+  
+  print(gg4)
+  print(w4week)
+  print(obs_predw4) 
+ }
+} 
+# input data set
+# first data set with missing value replaced by interpolation
+
+Tellfortune("./log2wkImpute.csv",2,276,TRUE)
+ 
+Tellfortune("./datalog2wk.csv",2,276,TRUE)
+#monthly data
+# firs tdata set with missing value replaced by interpolation
+
+Tellfortune("./squaremonthImpute.csv",4,63,FALSE)
+Tellfortune("./datasquaremonth.csv",4,63,FALSE)
+ 
+``` 

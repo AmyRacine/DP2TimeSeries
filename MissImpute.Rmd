@@ -1,0 +1,61 @@
+---
+title: "MissImpute"
+author: "Amy Racine"
+date: "17 12 2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+Impute missing data in PTB.rate
+ 
+
+
+```{r, evaluation, echo=FALSE}
+
+# gap imputation maxgap
+MissingGen<-function(missdata,imputedata,gap)
+
+{
+  # simple imputation library 
+  library(imputeTS)
+  library(ggplot2)
+  datain<-read.csv2(missdata)
+  PTB.rate<-datain[,2]
+  
+   # missing value indicator  #
+  missind<-is.na(datain[,2])
+    
+  
+gg<-  ggplot_na_distribution(PTB.rate,
+title = "Distribution of Missing Values",
+subtitle = "Time Series with highlighted missing regions",
+  )
+print(gg)
+print(PTB.rate)
+
+  dataimpute<-na_interpolation(PTB.rate,option="linear",maxgap=gap)
+     
+  gg<-  ggplot_na_distribution(dataimpute,
+title = "Distribution of missing value imputed time series")
+ print(gg)
+ datain[,2]<-dataimpute
+ datain<-data.frame(datain,missind)
+  
+  write.csv2(datain[,-1],file=imputedata)
+  print(dataimpute) 
+}
+
+# 2 datasets with missing PTB rate, replaced by linear interpolation
+
+ MissingGen( "./log2monthmiss.csv","./log2monthimpute.csv",6)
+ MissingGen( "./log2wkmiss.csv","./log2wkImpute.csv",6)
+ 
+ MissingGen( "./squaremonthmiss.csv","./squaremonthimpute.csv",6)
+ MissingGen( "./squarewkmiss.csv","./squarewkImpute.csv",6)
+  
+```
