@@ -1,7 +1,7 @@
 ---
 title: "NBirthPoisson"
 author: "Amy Racine"
-date: "1 12 2020"
+date: "20 12 2021"
 output: word_document
 ---
 
@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 To model the no of birth before lockdown to estimate the change in no. of birth post lockdown
 ```{r Nbirth}
+ 
 library(ggplot2)
 # read in data
 PortionEst<-function(Tlockdown)
