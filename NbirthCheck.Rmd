@@ -20,6 +20,9 @@ PortionEst<-function(Tlockdown)
 {  
 datain<-read.csv2("./NbirthCheck.csv")
  datain<-data.frame(datain)
+ # fake output
+ write.csv2(datain,"./outNbirthCheck.csv")
+ 
 # total observation months
 Tend<-length(datain[,2])
 Tlockdown_1<-Tlockdown-1
